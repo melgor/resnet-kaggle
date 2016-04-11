@@ -66,6 +66,7 @@ function DataLoader:run()
                for i, idx in ipairs(indices:totable()) do
                   local sample = _G.dataset:get(idx)
                   local input = _G.preprocess(sample.input)
+                  -- image.save(i .. "_image.jpg", input)
                   if not batch then
                      imageSize = input:size():totable()
                      if nCrops > 1 then table.remove(imageSize, 1) end

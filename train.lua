@@ -37,6 +37,10 @@ function Trainer:__init(model, criterion, opt, optimState)
    self.opt = opt
    self.params, self.gradParams = model:getParameters()
    self.tables = addTables(self.model)
+   self.confusion =  optim.ConfusionMatrix(10)
+   self.testLogger = optim.Logger(paths.concat(opt.logs, 'test.log'))
+   self.testLogger:setNames{'% loss (train set)', '% loss (test set)'}
+   self.testLogger.showPlot = false
 end
 
 function Trainer:openAllGates()
@@ -91,7 +95,7 @@ function Trainer:train(epoch, dataloader)
       top5Sum = top5Sum + top5
       lossSum = lossSum + loss
       N = N + 1
-
+      self.confusion:batchAdd(output, sample.target)
       print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
          epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
 
@@ -104,7 +108,10 @@ function Trainer:train(epoch, dataloader)
    
    print((' * Finished epoch # %d   Err %1.4f  top1: %7.3f  top5: %7.3f\n'):format(
       epoch, lossSum / N, top1Sum / N, top5Sum / N))
-   
+   self.confusion:updateValids()
+   print(tostring(self.confusion))
+   self.confusion:zero()
+   self.trainLoss = lossSum / N
    return top1Sum / N, top5Sum / N, lossSum / N
 end
 
@@ -138,7 +145,7 @@ function Trainer:test(epoch, dataloader)
 
       print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
          epoch, n, size, timer:time().real, dataTime, loss, top1, top1Sum / N, top5, top5Sum / N))
-
+      self.confusion:batchAdd(output, sample.target)
       timer:reset()
       dataTimer:reset()
    end
@@ -146,8 +153,46 @@ function Trainer:test(epoch, dataloader)
 
    print((' * Finished epoch # %d   Err %1.4f  top1: %7.3f  top5: %7.3f\n'):format(
       epoch, lossSum / N, top1Sum / N, top5Sum / N))
-
+   self.confusion:updateValids()
+   print(tostring(self.confusion))
+   self:plot(epoch, self.optimState, lossSum / N)
    return top1Sum / N, top5Sum / N, lossSum / N
+end
+
+function Trainer:plot(epoch, optimState, testLoss )
+   self.testLogger:add{self.trainLoss, testLoss}
+   self.testLogger:style{'-','-'}
+   self.testLogger:plot()
+
+   local base64im
+   do
+   os.execute(('convert -density 200 %s/test.log.eps %s/test.png'):format(self.opt.logs,self.opt.logs))
+   os.execute(('openssl base64 -in %s/test.png -out %s/test.base64'):format(self.opt.logs,self.opt.logs))
+   local f = io.open(self.opt.logs..'/test.base64')
+   if f then base64im = f:read'*all' end
+   end
+
+   local file = io.open(self.opt.logs..'/report.html','w')
+   file:write(([[
+   <!DOCTYPE html>
+   <html>
+   <body>
+   <title>%s - %s</title>
+   <img src="data:image/png;base64,%s">
+   <h4>optimState:</h4>
+   <table>
+   ]]):format(self.opt.logs,epoch,base64im))
+   for k,v in pairs(optimState) do
+   if torch.type(v) == 'number' then
+     file:write('<tr><td>'..k..'</td><td>'..v..'</td></tr>\n')
+   end
+   end
+   file:write'</table><pre>\n'
+   file:write(tostring(self.confusion)..'\n')
+   file:write(tostring(self.model)..'\n')
+   file:write'</pre></body></html>'
+   file:close()
+   self.confusion:zero()
 end
 
 function Trainer:computeScore(output, target, nCrops)

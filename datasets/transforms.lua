@@ -126,6 +126,7 @@ function M.RandomScale(minSize, maxSize)
    end
 end
 
+local minArea = 0.1 
 -- Random crop with size 8%-100% and aspect ratio 3/4 - 4/3 (Inception-style)
 function M.RandomSizedCrop(size)
    local scale = M.Scale(size)
@@ -135,7 +136,7 @@ function M.RandomSizedCrop(size)
       local attempt = 0
       repeat
          local area = input:size(2) * input:size(3)
-         local targetArea = torch.uniform(0.6, 1.0) * area
+         local targetArea = torch.uniform(minArea, 1.0) * area
 
          local aspectRatio = torch.uniform(3/4, 4/3)
          local w = torch.round(math.sqrt(targetArea * aspectRatio))
@@ -333,7 +334,7 @@ function M.Warp( factor)
    local crop_p4s = calc_crops(input:size(3), input:size(2), factor)
    local p4 = crop_p4s[torch.random(1, #crop_p4s)]
    local off = factor * input:size(2)
-   input = iproc.zero_padding(input, off)    
+   -- input = iproc.zero_padding(input, off)    
 
    input = iproc.perspective_crop(input,
             p4[1], p4[2],
