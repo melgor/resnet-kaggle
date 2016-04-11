@@ -6,7 +6,7 @@
 --  LICENSE file in the root directory of this source tree. An additional grant
 --  of patent rights can be found in the PATENTS file in the same directory.
 --
-
+json = require('json') 
 local checkpoint = {}
 
 function checkpoint.latest(opt)
@@ -25,26 +25,34 @@ function checkpoint.latest(opt)
    return latest, optimState
 end
 
-function checkpoint.save(epoch, model, optimState, bestModel)
+function checkpoint.save(epoch, model, optimState, bestModel, opt)
    -- Don't save the DataParallelTable for easier loading on other machines
    if torch.type(model) == 'nn.DataParallelTable' then
       model = model:get(1)
    end
 
-   local modelFile = 'model_' .. epoch .. '.t7'
-   local optimFile = 'optimState_' .. epoch .. '.t7'
+   local modelFile = opt.logs .. '/model_' .. epoch .. '.t7'
+   local optimFile = opt.logs .. '/optimState_' .. epoch .. '.t7'
 
    torch.save(modelFile, model)
    torch.save(optimFile, optimState)
-   torch.save('latest.t7', {
+   torch.save(opt.logs .. '/latest.t7', {
       epoch = epoch,
       modelFile = modelFile,
       optimFile = optimFile,
    })
 
    if bestModel then
-      torch.save('model_best.t7', model)
+      torch.save(opt.logs ..'/model_best.t7', model)
    end
+end
+
+
+function checkpoint.saveJSON( epoch, optimState, opt,  data)
+   local name_file = opt.logs .. '/log_' .. epoch .. '.json'
+   data['optimState']  = optimState
+   data['opt']  = opt
+   json.save(name_file, data)
 end
 
 return checkpoint

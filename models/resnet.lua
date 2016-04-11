@@ -15,8 +15,8 @@ require 'cunn'
 local Convolution = cudnn.SpatialConvolution
 local Avg = cudnn.SpatialAveragePooling
 local ReLU = cudnn.ReLU
-local Max = nn.SpatialMaxPooling
-local SBatchNorm = nn.SpatialBatchNormalization
+local Max = cudnn.SpatialMaxPooling
+local SBatchNorm = cudnn.SpatialBatchNormalization
 
 local function createModel(opt)
    local depth = opt.depth
@@ -124,8 +124,9 @@ local function createModel(opt)
       model:add(layer(block, 256, def[3], 2))
       model:add(layer(block, 512, def[4], 2))
       model:add(Avg(7, 7, 1, 1))
+--       model:add(nn.Dropout(0.5))
       model:add(nn.View(nFeatures):setNumInputDims(3))
-      model:add(nn.Linear(nFeatures, 1000))
+      model:add(nn.Linear(nFeatures, 10))
    elseif opt.dataset == 'cifar10' then
       -- Model type specifies number of layers for CIFAR-10 model
       assert((depth - 2) % 6 == 0, 'depth should be one of 20, 32, 44, 56, 110, 1202')

@@ -8,11 +8,20 @@
 --
 --  The training loop and learning rate schedule
 --
-
+-- require 'models/ResidualDrop'
 local optim = require 'optim'
 
 local M = {}
 local Trainer = torch.class('resnet.Trainer', M)
+
+
+function addTables(model)
+  addtables = {}
+  for i=1,model:get(1):size() do
+      if tostring(model:get(1):get(i)) == 'nn.ResidualDrop' then addtables[#addtables+1] = i end
+  end
+  return addtables
+end
 
 function Trainer:__init(model, criterion, opt, optimState)
    self.model = model
@@ -27,6 +36,17 @@ function Trainer:__init(model, criterion, opt, optimState)
    }
    self.opt = opt
    self.params, self.gradParams = model:getParameters()
+   self.tables = addTables(self.model)
+end
+
+function Trainer:openAllGates()
+    for i,block in ipairs(self.tables) do self.model:get(1):get(block).gate = true end
+end
+  
+function Trainer:closeGatesRandomly()
+    for i,tb in ipairs(self.tables) do
+      if torch.rand(1)[1] < self.model:get(1):get(tb).deathRate then self.model:get(1):get(tb).gate = false end
+    end
 end
 
 function Trainer:train(epoch, dataloader)
@@ -48,6 +68,10 @@ function Trainer:train(epoch, dataloader)
    -- set the batch norm to training mode
    self.model:training()
    for n, sample in dataloader:run() do
+      -- Function only for Residual-Drop
+--       self:openAllGates()
+--       self:closeGatesRandomly()
+      
       local dataTime = dataTimer:time().real
 
       -- Copy input and target to the GPU
@@ -77,7 +101,10 @@ function Trainer:train(epoch, dataloader)
       timer:reset()
       dataTimer:reset()
    end
-
+   
+   print((' * Finished epoch # %d   Err %1.4f  top1: %7.3f  top5: %7.3f\n'):format(
+      epoch, lossSum / N, top1Sum / N, top5Sum / N))
+   
    return top1Sum / N, top5Sum / N, lossSum / N
 end
 
@@ -89,10 +116,11 @@ function Trainer:test(epoch, dataloader)
    local size = dataloader:size()
 
    local nCrops = self.opt.tenCrop and 10 or 1
-   local top1Sum, top5Sum = 0.0, 0.0
+   local top1Sum, top5Sum, lossSum = 0.0, 0.0, 0.0
    local N = 0
 
    self.model:evaluate()
+--    self:openAllGates()
    for n, sample in dataloader:run() do
       local dataTime = dataTimer:time().real
 
@@ -105,20 +133,21 @@ function Trainer:test(epoch, dataloader)
       local top1, top5 = self:computeScore(output, sample.target, nCrops)
       top1Sum = top1Sum + top1
       top5Sum = top5Sum + top5
+      lossSum = lossSum + loss
       N = N + 1
 
-      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
-         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
+         epoch, n, size, timer:time().real, dataTime, loss, top1, top1Sum / N, top5, top5Sum / N))
 
       timer:reset()
       dataTimer:reset()
    end
    self.model:training()
 
-   print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
-      epoch, top1Sum / N, top5Sum / N))
+   print((' * Finished epoch # %d   Err %1.4f  top1: %7.3f  top5: %7.3f\n'):format(
+      epoch, lossSum / N, top1Sum / N, top5Sum / N))
 
-   return top1Sum / N, top5Sum / N
+   return top1Sum / N, top5Sum / N, lossSum / N
 end
 
 function Trainer:computeScore(output, target, nCrops)
@@ -160,11 +189,12 @@ function Trainer:copyInputs(sample)
    self.target:resize(sample.target:size()):copy(sample.target)
 end
 
+local epoch_decay = 15
 function Trainer:learningRate(epoch)
    -- Training schedule
    local decay = 0
    if self.opt.dataset == 'imagenet' then
-      decay = math.floor((epoch - 1) / 30)
+      decay = math.floor((epoch - 1) / epoch_decay)
    elseif self.opt.dataset == 'cifar10' then
       decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
    end

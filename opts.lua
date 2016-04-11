@@ -23,6 +23,7 @@ function M.parse(arg)
    cmd:option('-backend',    'cudnn',    'Options: cudnn | cunn')
    cmd:option('-cudnn',      'fastest',  'Options: fastest | default | deterministic')
    cmd:option('-gen',        'gen',      'Path to save generated files')
+   cmd:option('-logs',       'logs',      'Path to save model files')
    ------------- Data options ------------------------
    cmd:option('-nThreads',        2, 'number of data loading threads')
    ------------- Training options --------------------
@@ -79,7 +80,7 @@ function M.parse(arg)
          cmd:error('-nClasses required when resetClassifier is set')
       end
    end
-
+   paths.mkdir(opt.logs)
    return opt
 end
 
