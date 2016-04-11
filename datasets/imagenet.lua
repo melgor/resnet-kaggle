@@ -76,11 +76,14 @@ local pca = {
       { -0.5836, -0.6948,  0.4203 },
    },
 }
-
+local imgDimScale = 256
+local imgDim = 224
 function ImagenetDataset:preprocess()
    if self.split == 'train' then
       return t.Compose{
-         t.RandomSizedCrop(224),
+         t.Scale(imgDimScale),
+         t.RandomSizedCrop(imgDim),
+         -- t.Warp(nil),
          t.ColorJitter({
             brightness = 0.4,
             contrast = 0.4,
@@ -93,9 +96,9 @@ function ImagenetDataset:preprocess()
    elseif self.split == 'val' then
       local Crop = self.opt.tenCrop and t.TenCrop or t.CenterCrop
       return t.Compose{
-         t.Scale(256),
+         t.Scale(imgDimScale),
          t.ColorNormalize(meanstd),
-         Crop(224),
+         t.CenterCrop(imgDim),
       }
    else
       error('invalid split: ' .. self.split)

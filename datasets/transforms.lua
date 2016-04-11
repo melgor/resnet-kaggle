@@ -10,7 +10,7 @@
 --
 
 require 'image'
-
+local iproc = require 'datasets/iproc'
 local M = {}
 
 function M.Compose(transforms)
@@ -135,7 +135,7 @@ function M.RandomSizedCrop(size)
       local attempt = 0
       repeat
          local area = input:size(2) * input:size(3)
-         local targetArea = torch.uniform(0.08, 1.0) * area
+         local targetArea = torch.uniform(0.6, 1.0) * area
 
          local aspectRatio = torch.uniform(3/4, 4/3)
          local w = torch.round(math.sqrt(targetArea * aspectRatio))
@@ -287,6 +287,63 @@ function M.ColorJitter(opt)
    end
 
    return M.RandomOrder(ts)
+end
+
+local function calc_crops(size_X, size_Y, factor)
+   local off = math.floor(factor * size_Y)
+   local off5 = math.floor(off * 0.5)
+   local w = off * 2 + size_X - 1
+   local h = off * 2 + size_Y - 1
+   local crop_p4s = {
+      -- zoom
+      { off, off,   w - off, off,   w - off, h - off,   off, h - off },
+      { 0, 0, w, 0, w, h, 0, h},
+      { off*2, off*2,   w - off * 2, off * 2,   w - off * 2, h - off * 2,   off * 2, h - off * 2 },
+      
+      -- perspective crop
+      
+      -- zoomout
+      { off, 0,   w - off, 0,   w - off, h,  off, h},
+      { 0, off,   w, off,   w, h - off, 0,   h - off},
+      {off, off,   w - off, off,   w, h - off,   0, h - off},
+      {0, off,   w, off,   w - off, h - off,   off, h - off},
+      {off, 0,   w - off, off,   w - off, h - off,   off, h},
+      {off, off,   w - off, 0,    w - off, h, off,   h - off},
+      {off, 0,   w - off, off,   w - off, h - off,   off, h},
+
+      -- zoomin
+      { off*2, off,   w - off * 2, off,   w - off * 2, h - off,   off * 2, h - off},
+      { off, off*2,   w - off, off * 2,    w - off, h - off * 2,    off, h - off * 2},
+      {off + off, off + off,   w - off - off, off + off,   w - off, h - off - off,   off, h - off - off},
+      {off, off + off,   w - off, off + off,   w - off - off, h - off - off,   off + off, h - off - off},
+      {off + off, off,   w - off - off, off + off,   w - off - off, h - off - off,   off + off, h - off},
+      {off + off, off + off,   w - off - off, off,   w - off - off, h - off,   off + off, h - off - off},
+      {off + off, off,   w - off - off, off + off,   w - off - off, h - off - off,   off + off, h - off},
+   }
+   return crop_p4s
+end
+
+local DA_FACTOR_MIN = 0.1
+local DA_FACTOR_MAX = 0.1666
+
+function M.Warp( factor)
+   -- jitter for training
+  return function(input)
+   factor = factor or torch.uniform(DA_FACTOR_MIN, DA_FACTOR_MAX)
+   local crop_p4s = calc_crops(input:size(3), input:size(2), factor)
+   local p4 = crop_p4s[torch.random(1, #crop_p4s)]
+   local off = factor * input:size(2)
+   input = iproc.zero_padding(input, off)    
+
+   input = iproc.perspective_crop(input,
+            p4[1], p4[2],
+            p4[3], p4[4],
+            p4[5], p4[6],
+            p4[7], p4[8],
+            input:size(3), input:size(2))
+
+   return input
+  end
 end
 
 return M
