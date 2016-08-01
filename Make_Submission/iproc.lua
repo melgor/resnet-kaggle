@@ -94,7 +94,7 @@ function iproc.gcn(img)
 end
 
 local function get_perspective_param(p)
-   local params = torch.FloatTensor(8)
+   local params = torch.Tensor(8)
    local sx = p[1].x - p[2].x + p[3].x - p[4].x
    local sy = p[1].y - p[2].y + p[3].y - p[4].y
    local dx1 = p[2].x - p[3].x
@@ -122,18 +122,18 @@ function iproc.perspective_crop(src, x1, y1, x2, y2, x3, y3, x4, y4, w, h)
    end
    local height = h or src:size(2)
    local width = w or src:size(3)
-   local flow = torch.FloatTensor(2, height, width)
+   local flow = torch.Tensor(2, height, width)
    local p = get_perspective_param({{x = x1, y = y1}, -- top left
             {x = x2, y = y2}, -- top right
             {x = x3, y = y3}, -- bottom right
             {x = x4, y = y4}  -- bottom left
            })
-   local v = torch.ger(torch.linspace(-1,1, height), torch.ones(width)):add(1):mul(0.5):float()
-   local u = torch.ger(torch.ones(height), torch.linspace(-1,1, width)):add(1):mul(0.5):float()
+   local v = torch.ger(torch.linspace(-1,1, height), torch.ones(width)):add(1):mul(0.5)--:float()
+   local u = torch.ger(torch.ones(height), torch.linspace(-1,1, width)):add(1):mul(0.5)--:float()
    local t = (u * p[7]) + (v * p[8]) + 1
    flow[1]:copy(u * p[4]):add(v * p[5]):add(p[6]):cdiv(t)
    flow[2]:copy(u * p[1]):add(v * p[2]):add(p[3]):cdiv(t)
-   dst = torch.FloatTensor(1, height, width)
+   dst = torch.Tensor(1, height, width)
    image.warp(dst, src, flow, 'bicubic', false, 'pad')
    dst[torch.lt(dst, 0)] = 0
    return dst

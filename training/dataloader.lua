@@ -33,6 +33,7 @@ function DataLoader:__init(dataset, opt, split)
       require('datasets/' .. opt.dataset)
    end
    local function main(idx)
+      torch.setnumthreads(1)
       _G.dataset = dataset
       _G.preprocess = dataset:preprocess()
       return dataset:size()
@@ -66,7 +67,6 @@ function DataLoader:run()
                for i, idx in ipairs(indices:totable()) do
                   local sample = _G.dataset:get(idx)
                   local input = _G.preprocess(sample.input)
-                  -- image.save(i .. "_image.jpg", input)
                   if not batch then
                      imageSize = input:size():totable()
                      if nCrops > 1 then table.remove(imageSize, 1) end

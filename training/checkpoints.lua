@@ -33,14 +33,16 @@ function checkpoint.save(epoch, model, optimState, bestModel, opt)
 
    local modelFile = opt.logs .. '/model_' .. epoch .. '.t7'
    local optimFile = opt.logs .. '/optimState_' .. epoch .. '.t7'
-
-   torch.save(modelFile, model)
-   torch.save(optimFile, optimState)
-   torch.save(opt.logs .. '/latest.t7', {
-      epoch = epoch,
-      modelFile = modelFile,
-      optimFile = optimFile,
-   })
+   
+   -- if epoch % 5 == 0 then
+   --  torch.save(modelFile, model)
+   --  torch.save(optimFile, optimState)
+   --  torch.save(opt.logs .. '/latest.t7', {
+   --      epoch = epoch,
+   --      modelFile = modelFile,
+   --      optimFile = optimFile,
+   --  })
+   -- end
 
    if bestModel then
       torch.save(opt.logs ..'/model_best.t7', model)

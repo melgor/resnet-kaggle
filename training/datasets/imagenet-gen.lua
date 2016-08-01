@@ -82,7 +82,6 @@ local function findImages(dir, classToIdx)
    end
 
    local imageClass = torch.LongTensor(imageClasses)
-
    return imagePath, imageClass
 end
 
@@ -120,7 +119,6 @@ function M.exec(opt, cacheFile)
 
    print(" | saving list of images to " .. cacheFile)
    torch.save(cacheFile, info)
-   print (classList)
    return info
 end
 

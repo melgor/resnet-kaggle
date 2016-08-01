@@ -11,10 +11,10 @@ require 'paths'
 require 'optim'
 require 'nn'
 require 'models/ResidualDrop'
-local DataLoader = require 'dataloader'
-local models = require 'models/init'
-local Trainer = require 'train'
-local opts = require 'opts'
+local DataLoader  = require 'dataloader'
+local models      = require 'models/init'
+local Trainer     = require 'train'
+local opts        = require 'opts'
 local checkpoints = require 'checkpoints'
 
 torch.setdefaulttensortype('torch.FloatTensor')
@@ -22,7 +22,7 @@ torch.setdefaulttensortype('torch.FloatTensor')
 local opt = opts.parse(arg)
 torch.manualSeed(opt.manualSeed)
 cutorch.manualSeedAll(opt.manualSeed)
-cutorch.setDevice(1)
+cutorch.setDevice(opt.GPU)
 -- 
 -- Load previous checkpoint, if it exists
 local checkpoint, optimState = checkpoints.latest(opt)
@@ -47,6 +47,7 @@ local startEpoch = checkpoint and checkpoint.epoch + 1 or opt.epochNumber
 local bestTop1 = math.huge
 local bestTop5 = math.huge
 local bestLoss = math.huge
+local bestEpoch = 1
 for epoch = startEpoch, opt.nEpochs do
    -- Train for a single epoch
    local trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
@@ -60,6 +61,7 @@ for epoch = startEpoch, opt.nEpochs do
       bestTop1 = testTop1
       bestTop5 = testTop5
       bestLoss = testLoss
+      bestEpoch = epoch
       print(' * Best model ', testTop1, testTop5)
    end
    --save Logs
@@ -75,7 +77,7 @@ for epoch = startEpoch, opt.nEpochs do
       best_err = bestTop1,
       best_err5 = bestTop5,
       best_loss = bestLoss,
-      best_epochNumber = epoch,
+      best_epochNumber = bestEpoch,
       best_trainLoss = trainLoss,
       best_accuracy = 100 - bestTop1,
       finished = false,

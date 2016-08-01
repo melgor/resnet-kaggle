@@ -10,7 +10,7 @@
 --
 
 require 'image'
-local iproc = require 'datasets/iproc'
+local iproc = require 'iproc'
 local M = {}
 
 function M.Compose(transforms)
@@ -27,10 +27,21 @@ function M.ColorNormalize(meanstd)
       img = img:clone()
       for i=1,3 do
          img[i]:add(-meanstd.mean[i])
-         img[i]:div(meanstd.std[i])
+--          img[i]:div(meanstd.std[i])
       end
       return img
    end
+end
+
+-- RGB to BGR and scale image to 0-255
+function M.VGG_Preprocess()
+  return function(img)
+      local im2      = img:clone()
+      im2[{1,{},{}}] = img[{3,{},{}}]
+      im2[{3,{},{}}] = img[{1,{},{}}]
+      im2:mul(255)
+      return im2
+  end
 end
 
 -- Scales the smaller edge to size
@@ -126,7 +137,7 @@ function M.RandomScale(minSize, maxSize)
    end
 end
 
-local minArea = 0.1 
+local minArea = 0.7
 -- Random crop with size 8%-100% and aspect ratio 3/4 - 4/3 (Inception-style)
 function M.RandomSizedCrop(size)
    local scale = M.Scale(size)
@@ -333,8 +344,8 @@ function M.Warp( factor)
    factor = factor or torch.uniform(DA_FACTOR_MIN, DA_FACTOR_MAX)
    local crop_p4s = calc_crops(input:size(3), input:size(2), factor)
    local p4 = crop_p4s[torch.random(1, #crop_p4s)]
-   local off = factor * input:size(2)
-   -- input = iproc.zero_padding(input, off)    
+   local off = math.floor(factor * input:size(2))
+   input = iproc.zero_padding(input, off)    
 
    input = iproc.perspective_crop(input,
             p4[1], p4[2],
@@ -345,6 +356,57 @@ function M.Warp( factor)
 
    return input
   end
+end
+
+-- change to random color space and add it like a noise
+-- can not get it working
+function M.ColorSpaceJitter( var)
+   local gs
+   local colorSpace = {
+      image.rgb2lab,
+      image.rgb2yuv,
+      image.rgb2hsl,
+      image.rgb2hsv,
+   }
+
+   return function(input)
+      local func = colorSpace[torch.random(1, #colorSpace)]
+      gs = func(input)
+      -- normalize value to range 0-1 of choosen color space
+      for i=1,3 do
+         gs[i] = (gs[i] - gs[i]:min())/(gs[i]:max() - gs[i]:min())
+      end
+      -- print ('start')
+      -- print (input[1]:min())
+      -- print (input[2]:min())
+      -- print (input[3]:min())
+      local alpha = 1.0 + torch.uniform(0, var)
+      blend(input, gs, alpha)
+      -- print ('start 2')
+      -- print (input[1]:min())
+      -- print (input[2]:min())
+      -- print (input[3]:min())
+      -- image.save(alpha .. "_image.jpg", input)
+      return input
+   end
+end
+
+-- From Baidu: http://arxiv.org/vc/arxiv/papers/1501/1501.02876v1.pdf
+-- add +- ~20 values to random channels
+function M.ColorCasting( var)
+   return function(input)
+      local bolCast = torch.Tensor(3):random(0,1) 
+      local gs      = input:clone() -- set change as origian image
+      for i=1,3 do 
+         if bolCast[i]==1 then  
+            gs[{i}] = 1.0  -- set maximum value 
+         end 
+      end
+      local alpha = 1.0 + torch.uniform(-var, var)
+      blend(input, gs, alpha)
+      -- image.save(alpha .. "_image.jpg", input)
+      return input
+   end
 end
 
 return M

@@ -15,10 +15,11 @@ local M = {}
 local Trainer = torch.class('resnet.Trainer', M)
 
 
+
 function addTables(model)
   addtables = {}
-  for i=1,model:get(1):size() do
-      if tostring(model:get(1):get(i)) == 'nn.ResidualDrop' then addtables[#addtables+1] = i end
+  for i=1,model:size() do
+      if tostring(model:get(i)) == 'nn.ResidualDrop' then addtables[#addtables+1] = i end
   end
   return addtables
 end
@@ -36,22 +37,23 @@ function Trainer:__init(model, criterion, opt, optimState)
    }
    self.opt = opt
    self.params, self.gradParams = model:getParameters()
-   self.tables = addTables(self.model)
+--    self.tables = addTables(self.model)
    self.confusion =  optim.ConfusionMatrix(10)
    self.testLogger = optim.Logger(paths.concat(opt.logs, 'test.log'))
    self.testLogger:setNames{'% loss (train set)', '% loss (test set)'}
    self.testLogger.showPlot = false
+
 end
 
-function Trainer:openAllGates()
-    for i,block in ipairs(self.tables) do self.model:get(1):get(block).gate = true end
-end
-  
-function Trainer:closeGatesRandomly()
-    for i,tb in ipairs(self.tables) do
-      if torch.rand(1)[1] < self.model:get(1):get(tb).deathRate then self.model:get(1):get(tb).gate = false end
-    end
-end
+-- function Trainer:openAllGates()
+--     for i,block in ipairs(self.tables) do self.model:get(block).gate = true end
+-- end
+--   
+-- function Trainer:closeGatesRandomly()
+--     for i,tb in ipairs(self.tables) do
+--       if torch.rand(1)[1] < self.model:get(tb).deathRate then self.model:get(tb).gate = false end
+--     end
+-- end
 
 function Trainer:train(epoch, dataloader)
    -- Trains the model for a single epoch
@@ -61,6 +63,8 @@ function Trainer:train(epoch, dataloader)
    local dataTimer = torch.Timer()
 
    local function feval()
+--       self.gradParams:clamp(-1, 1)
+--       print (torch.max(self.gradParams), torch.min(self.gradParams))
       return self.criterion.output, self.gradParams
    end
 
@@ -71,23 +75,20 @@ function Trainer:train(epoch, dataloader)
    print('=> Training epoch # ' .. epoch)
    -- set the batch norm to training mode
    self.model:training()
+   print(self.model)
    for n, sample in dataloader:run() do
       -- Function only for Residual-Drop
---       self:openAllGates()
---       self:closeGatesRandomly()
+      -- self:openAllGates()
+      -- self:closeGatesRandomly()
       
       local dataTime = dataTimer:time().real
-
       -- Copy input and target to the GPU
       self:copyInputs(sample)
-
       local output = self.model:forward(self.input):float()
-      local loss = self.criterion:forward(self.model.output, self.target)
-
+      local loss   = self.criterion:forward(self.model.output, self.target)
       self.model:zeroGradParameters()
       self.criterion:backward(self.model.output, self.target)
       self.model:backward(self.input, self.criterion.gradInput)
-
       optim.sgd(feval, self.params, self.optimState)
 
       local top1, top5 = self:computeScore(output, sample.target, 1)
@@ -127,7 +128,7 @@ function Trainer:test(epoch, dataloader)
    local N = 0
 
    self.model:evaluate()
---    self:openAllGates()
+   -- self:openAllGates()
    for n, sample in dataloader:run() do
       local dataTime = dataTimer:time().real
 
@@ -234,16 +235,16 @@ function Trainer:copyInputs(sample)
    self.target:resize(sample.target:size()):copy(sample.target)
 end
 
-local epoch_decay = 15
+local decay_percent = 0.1
 function Trainer:learningRate(epoch)
    -- Training schedule
    local decay = 0
    if self.opt.dataset == 'imagenet' then
-      decay = math.floor((epoch - 1) / epoch_decay)
+      decay = math.floor((epoch - 1) / self.opt.epoch_decay)
    elseif self.opt.dataset == 'cifar10' then
       decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
    end
-   return self.opt.LR * math.pow(0.1, decay)
+   return self.opt.LR * math.pow(decay_percent, decay)
 end
 
 return M.Trainer

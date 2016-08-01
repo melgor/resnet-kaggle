@@ -1,0 +1,14 @@
+net: "deploy_cam.prototxt"
+test_iter: 125
+test_interval: 1250
+base_lr: 0.001
+lr_policy: "step"
+gamma: 0.1
+stepsize: 5000
+display: 200
+max_iter: 450000
+momentum: 0.9
+weight_decay: 0.0005
+snapshot: 1250
+snapshot_prefix: "nets_rand_224/vgg"
+solver_mode: GPU

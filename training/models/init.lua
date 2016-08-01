@@ -66,12 +66,85 @@ function M.setup(opt, checkpoint)
       local orig = model:get(#model.modules)
       assert(torch.type(orig) == 'nn.Linear',
          'expected last layer to be fully connected')
-
+      
+--       -- Add dropout after each block
+--       local numDrop = {}
+--       for i=1,  #model.modules do
+-- 	print (torch.type(model:get(i)))
+-- 	if torch.type(model:get(i)) == 'nn.Sequential' then
+-- 	  print (i)
+-- 	  table.insert(numDrop, i)
+-- 	end
+--       end
+--       
+--       for key,value in pairs(numDrop) do
+-- 	print(key,value)
+-- 	model:insert(nn.Dropout(0.400000):cuda(), value  + key)
+--       end
+      
+--      -- Add dropout after each block
+--       local numDrop = {}
+--       local numDropIdx = {}
+--       for i=1,  #model.modules do
+-- 	print (torch.type(model:get(i)))
+-- 	if torch.type(model:get(i)) == 'nn.Sequential' then
+-- 	  local tModule = {}
+-- 	  for j=1,  #model:get(i).modules do
+-- 	    if torch.type(model:get(i):get(j)) == 'nn.Sequential' then
+-- 	      table.insert(tModule, j)
+-- 	    end
+-- 	  end
+-- 	  table.insert(numDropIdx, i)
+-- 	  table.insert(numDrop, tModule)
+-- 	end
+--       end
+--       
+--       local nunSeq = 1
+--       for key,value in pairs(numDropIdx) do
+-- 	print (numDrop[value], nunSeq)
+-- 	for idx,num in pairs(numDrop[nunSeq]) do
+-- 	  model.modules[value]:insert(nn.Dropout(0.400000):cuda(), idx + num)
+-- 	end
+-- 	nunSeq = nunSeq + 1
+--       end
+	 
       local linear = nn.Linear(orig.weight:size(2), opt.nClasses)
       linear.bias:zero()
 
       model:remove(#model.modules)
       model:add(linear:cuda())
+-- --       print (model)
+--       
+--       local function ConvInit(name)
+--       for k,v in pairs(model:findModules(name)) do
+--          local n = v.kW*v.kH*v.nOutputPlane
+--          v.weight:normal(0,math.sqrt(2/n))
+--          if cudnn.version >= 4000 then
+--             v.bias = nil
+--             v.gradBias = nil
+--          else
+--             v.bias:zero()
+--          end
+--       end
+--      end
+-- 
+-- 
+--       ConvInit('cudnn.SpatialConvolution')
+--       ConvInit('nn.SpatialConvolution')
+--     
+--       for k,v in pairs(model:findModules('nn.Linear')) do
+-- 	  v.bias:zero()
+--       end
+--       model:cuda()
+-- 
+--       if opt.cudnn == 'deterministic' then
+-- 	  model:apply(function(m)
+-- 	    if m.setMode then m:setMode(1,1,1) end
+-- 	  end)
+--       end
+-- 
+--       model:get(1).gradInput = nil
+   
    end
 
    -- Set the CUDNN flags
@@ -102,6 +175,7 @@ function M.setup(opt, checkpoint)
    end
 
    local criterion = nn.CrossEntropyCriterion():cuda()
+   -- local criterion = nn.ClassNLLCriterion():cuda()
    return model, criterion
 end
 

@@ -39,7 +39,7 @@ end
 
 function ImagenetDataset:_loadImage(path)
    local ok, input = pcall(function()
-      return image.load(path, 3, 'float')
+      return image.load(path, 3, 'float') --w* 255.0 --VGG 16 scale
    end)
 
    -- Sometimes image.load fails because the file extension does not match the
@@ -64,8 +64,14 @@ function ImagenetDataset:size()
 end
 
 -- Computed from random subset of ImageNet training images
-local meanstd = {
-   mean = { 0.485, 0.456, 0.406 },
+-- local meanstd = {
+--    mean = { 0.485, 0.456, 0.406 },
+--    std = { 0.229, 0.224, 0.225 },
+-- }
+-- VGG 16
+local meanstd = 
+{
+   mean = { 103.939, 116.779, 123.68},
    std = { 0.229, 0.224, 0.225 },
 }
 local pca = {
@@ -76,30 +82,31 @@ local pca = {
       { -0.5836, -0.6948,  0.4203 },
    },
 }
-local imgDimScale = 256
-local imgDim = 224
+
 function ImagenetDataset:preprocess()
    if self.split == 'train' then
       return t.Compose{
-         t.Scale(imgDimScale),
-         -- t.Warp(nil),
-         t.RandomSizedCrop(imgDim),
-         -- t.RandomCrop(imgDim, 0.05 * imgDim),
+--          t.Scale(224),
+--          t.Rotation(15),
+--          t.RandomSizedCrop(224),
+         t.RandomCrop(224,1),
          t.ColorJitter({
             brightness = 0.4,
             contrast = 0.4,
             saturation = 0.4,
          }),
          t.Lighting(0.1, pca.eigval, pca.eigvec),
+	 t.VGG_Preprocess(),
          t.ColorNormalize(meanstd),
          t.HorizontalFlip(0.5),
       }
    elseif self.split == 'val' then
       local Crop = self.opt.tenCrop and t.TenCrop or t.CenterCrop
       return t.Compose{
-         t.Scale(imgDimScale),
+         t.Scale(256),
+	 t.VGG_Preprocess(),
          t.ColorNormalize(meanstd),
-         t.CenterCrop(imgDim),
+         Crop(224),
       }
    else
       error('invalid split: ' .. self.split)
